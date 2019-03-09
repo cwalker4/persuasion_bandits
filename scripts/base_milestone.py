@@ -45,13 +45,20 @@ def persuasion_bandit():
     # define the reward function; 1 if the judge convicts, 0 otherwise
     r_a = lambda p: 1 if p[1] >= p[0] else 0
     
-    # keep track of rewards
-    reward_means = []
-    batch_rewards = []  # average over 50 samples
+    # keep track of senders rewards
+    s_reward_means = []
+    s_batch_rewards = []  # average over 50 samples
+
+    # keep track of regret
+    r_reward_means = []
+    r_batch_rewards = []
     for t in range(1, n_iters):
         if t % 500 == 0:
-            reward_means.append(np.mean(batch_rewards))
-            batch_rewards = []
+            s_reward_means.append(np.mean(s_batch_rewards))
+            s_batch_rewards = []
+
+            r_reward_means.append(np.mean(r_batch_rewards))
+            r_batch_rewards = []
         
         # actions: bandit agent chooses p(g | i) and p(g | g)
         # these two probs completely characterize the distribution
@@ -82,22 +89,38 @@ def persuasion_bandit():
         denom = (pi[signal, :] @ prior)
         posterior[0] = (pi[signal, 0] * prior[0]) / denom
         posterior[1] = (pi[signal, 1] * prior[1]) / denom
-        
-        # get the reward
-        batch_rewards.append(r_a(posterior))
+
+        # get the reward for the sender
+        r_t = r_a(posterior)
+        s_batch_rewards.append(r_t)
+
+        # get the reward for the receiver
+        r_batch_rewards.append(r_t == state)
+
+        # update q and n functions
         n_a[ix_0, ix_1] += 1
-        q_a[ix_0, ix_1] += (r_a(posterior) - q_old) / n_a[ix_0, ix_1]
+        q_a[ix_0, ix_1] += (r_t - q_old) / n_a[ix_0, ix_1]
         
-    return q_a, n_a, reward_means
+    return q_a, n_a, r_reward_means, s_reward_means
     
 if __name__ == "__main__":
-    q_a, n_a, rs = persuasion_bandit()
+    q_a, n_a, r_rewards, s_rewards = persuasion_bandit()
 
-    line = np.poly1d(np.polyfit(x=range(len(rs)), y=np.array(rs), deg=7))
-    plt.plot(rs)
-    plt.plot(line(range(len(rs))), 'r-')
+    line = np.poly1d(np.polyfit(x=range(len(s_rewards)), y=np.array(s_rewards), deg=7))
+    plt.plot(s_rewards)
+    plt.plot(line(range(len(s_rewards))), 'r-')
     plt.xlabel('Batch Index')
     plt.ylabel('Average Reward')
     plt.show()
+
+    # plot the receiver's reward
+    line = np.poly1d(np.polyfit(x=range(len(r_rewards)), y=np.array(r_rewards), deg=7))
+    plt.plot(r_rewards)
+    plt.plot(line(range(len(r_rewards))), 'r-')
+    plt.xlabel('Batch Index')
+    plt.ylabel('Average Reward')
+    plt.show()
+
+
 
         
